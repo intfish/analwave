@@ -22,9 +22,9 @@ struct Cli {
     #[arg(long, default_value_t = 16)]
     samples: usize,
 
-    /// Detect silence of at least given seconds
-    #[arg(short, long, default_value_t = 0.0)]
-    silence: f32,
+    /// Detect silence
+    #[arg(short, long, default_value_t = false)]
+    silence: bool,
 
     /// Silence threshold (LUFS-S)
     #[arg(long, default_value_t = -70.0)]
@@ -106,7 +106,7 @@ fn analyze(args: &Cli, wav: &mut Wav<i32>) -> u8 {
         pb.inc(1);
 
         // Detect silence
-        if args.silence > 0.0 {
+        if args.silence {
             for sample in frame.iter() {
                 silence_frame_buf[silence_frame_buf_iter] = *sample;
                 silence_frame_buf_iter += 1;
@@ -221,7 +221,7 @@ fn analyze(args: &Cli, wav: &mut Wav<i32>) -> u8 {
         }
     }
 
-    if args.silence > 0.0 && silence_state.previous_lufs < args.lufs {
+    if args.silence && silence_state.previous_lufs < args.lufs {
         silence_state.silence_end_frame = num_frames;
         silence_count += silence_state.silence_end_frame - silence_state.silence_start_frame;
         println!(
@@ -251,7 +251,7 @@ fn main() -> ExitCode {
         return ExitCode::from(1);
     };
 
-    if !args.underrun && args.silence <= 0.0 {
+    if !args.underrun && !args.silence {
         println!("Neither underrun nor silence detection is active, exiting.");
         return ExitCode::from(1);
     }
@@ -260,11 +260,9 @@ fn main() -> ExitCode {
     println!("[+] sample rate:        {}", &spec.fmt_chunk.sample_rate);
     println!("[+] channels:           {}", wav.n_channels());
     println!("[+] total samples:      {}", wav.n_samples());
-    if args.silence > 0.0 {
+    if args.silence {
         println!("[+] silence threshold:  {} LUFS-S", &args.lufs);
-        println!("[+] silence length:     {}", &args.silence);
     }
-
     if args.underrun {
         println!("[+] underrun threshold: {} samples", &args.samples);
     }
