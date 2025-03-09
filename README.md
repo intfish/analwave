@@ -1,5 +1,8 @@
 # analwave
 
+Crude tool to detect underruns and silence in WAV files. 
+The primary use-case is for identifying problems and waste in large multi-track recording sessions.
+
 ```
 Usage: analwave [OPTIONS] --input <INPUT>
 
