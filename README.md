@@ -13,8 +13,8 @@ Options:
           Detect underruns
       --samples <SAMPLES>
           Underrun detection minimum samples [default: 16]
-  -s, --silence <SILENCE>
-          Detect silence of at least given seconds [default: 0]
+  -s, --silence
+          Detect silence
       --lufs <LUFS>
           Silence threshold (LUFS-S) [default: -70]
       --silence-percentage <SILENCE_PERCENTAGE>
