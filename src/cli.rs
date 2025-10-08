@@ -1,0 +1,37 @@
+use clap::Parser;
+
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+pub struct Cli {
+    /// The file to analyse
+    #[arg(short, long)]
+    pub input: String,
+
+    /// Detect underruns
+    #[arg(short, long, default_value_t = false)]
+    pub underrun: bool,
+
+    /// Underrun detection minimum samples
+    #[arg(long, default_value_t = 16)]
+    pub samples: usize,
+
+    /// Detect silence
+    #[arg(short, long, default_value_t = false)]
+    pub silence: bool,
+
+    /// Silence threshold (LUFS-S)
+    #[arg(long, default_value_t = -70.0)]
+    pub lufs: f64,
+
+    /// Silence percentage (returns error code if total silence is above this threshold)
+    #[arg(long, default_value_t = 99)]
+    pub silence_percentage: u16,
+
+    /// No fancy progress-bar
+    #[arg(long, default_value_t = false)]
+    pub no_progress: bool,
+
+    /// Debug output
+    #[arg(long, default_value_t = false)]
+    pub debug: bool,
+}
