@@ -34,4 +34,8 @@ pub struct Cli {
     /// Debug output
     #[arg(long, default_value_t = false)]
     pub debug: bool,
+
+    /// Silent (no output)
+    #[arg(long, default_value_t = false)]
+    pub silent: bool,
 }

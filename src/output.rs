@@ -16,11 +16,12 @@ pub fn frame_to_time(frame: usize, sample_rate: i32) -> String {
 #[derive(Debug)]
 pub struct Output {
     pub progress_bar: Option<ProgressBar>,
+    pub silent: bool,
 }
 
 impl Output {
     pub fn new(args: &Cli, num_frames: u64) -> Self {
-        let progress_bar = if args.no_progress {
+        let progress_bar = if args.no_progress || args.silent {
             None
         } else {
             Some(ProgressBar::new(num_frames))
@@ -32,7 +33,10 @@ impl Output {
                 .progress_chars("#>-"));
         }
 
-        Self { progress_bar }
+        Self {
+            progress_bar,
+            silent: args.silent,
+        }
     }
 
     pub fn inc(&self) {
@@ -45,5 +49,9 @@ impl Output {
         if let Some(pb) = &self.progress_bar {
             pb.finish();
         }
+    }
+
+    pub fn enabled(&self) -> bool {
+        !self.silent
     }
 }
