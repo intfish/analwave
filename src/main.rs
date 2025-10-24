@@ -8,13 +8,13 @@ use std::process::ExitCode;
 use wavers::{Wav, WaversResult};
 
 use cli::Cli;
-use output::{Output, fmt_frame, frame_to_time};
+use output::{fmt_frame, frame_to_time, init_output};
 use states::{DetectorState, SilenceState};
 
 const ERR_CONTAINS_UNDERRUN: u8 = 0b0001;
 const ERR_CONTAINS_SILENCE: u8 = 0b0010;
 
-fn analyse(args: &Cli, output: &Output, wav: &mut Wav<i32>) -> u8 {
+fn analyse(args: &Cli, wav: &mut Wav<i32>) -> u8 {
     let mut return_code = 0;
     let (_, spec) = wav.wav_spec();
     let sample_rate = spec.fmt_chunk.sample_rate;
@@ -47,7 +47,7 @@ fn analyse(args: &Cli, output: &Output, wav: &mut Wav<i32>) -> u8 {
 
     for (frame_counter, frame) in frames.enumerate() {
         let frame_label = fmt_frame(frame_counter, digits);
-        output.inc();
+        output::inc();
 
         // Detect silence
         if args.silence {
@@ -70,15 +70,13 @@ fn analyse(args: &Cli, output: &Output, wav: &mut Wav<i32>) -> u8 {
                 let lufs = loudness.loudness_shortterm().unwrap_or(f64::NEG_INFINITY);
                 if lufs < args.lufs && silence_state.previous_lufs >= args.lufs {
                     silence_state.silence_start_frame = frame_counter;
-                    if output.enabled() {
-                        println!(
-                            "[{}] SILENCE START: LUFS-S: {:04.3}; LUFS-I: {:04.3} @ {}",
-                            frame_label,
-                            lufs,
-                            loudness.loudness_global().unwrap_or(-f64::INFINITY),
-                            frame_to_time(frame_counter, sample_rate)
-                        );
-                    }
+                    output!(
+                        "[{}] SILENCE START: LUFS-S: {:04.3}; LUFS-I: {:04.3} @ {}",
+                        frame_label,
+                        lufs,
+                        loudness.loudness_global().unwrap_or(-f64::INFINITY),
+                        frame_to_time(frame_counter, sample_rate)
+                    );
                 }
 
                 if lufs >= args.lufs && silence_state.previous_lufs < args.lufs {
@@ -86,28 +84,24 @@ fn analyse(args: &Cli, output: &Output, wav: &mut Wav<i32>) -> u8 {
                     silence_count +=
                         silence_state.silence_end_frame - silence_state.silence_start_frame;
 
-                    if output.enabled() {
-                        println!(
-                            "[{}] SILENCE END  : LUFS-S: {:04.3}; LUFS-I: {:04.3} @ {} ({:04.3}% of total)",
-                            frame_label,
-                            lufs,
-                            loudness.loudness_global().unwrap_or(-f64::INFINITY),
-                            frame_to_time(frame_counter, sample_rate),
-                            (silence_count as f32 / num_frames as f32) * 100.0
-                        );
-                    }
-                }
-
-                silence_state.previous_lufs = lufs;
-                if args.debug {
-                    println!(
-                        "[{}] DEBUG        : LUFS-S: {:04.3}; LUFS-I: {:04.3} @ {}",
+                    output!(
+                        "[{}] SILENCE END  : LUFS-S: {:04.3}; LUFS-I: {:04.3} @ {} ({:04.3}% of total)",
                         frame_label,
                         lufs,
                         loudness.loudness_global().unwrap_or(-f64::INFINITY),
-                        frame_to_time(frame_counter, sample_rate)
+                        frame_to_time(frame_counter, sample_rate),
+                        (silence_count as f32 / num_frames as f32) * 100.0
                     );
                 }
+
+                silence_state.previous_lufs = lufs;
+                debug!(
+                    "[{}] DEBUG        : LUFS-S: {:04.3}; LUFS-I: {:04.3} @ {}",
+                    frame_label,
+                    lufs,
+                    loudness.loudness_global().unwrap_or(-f64::INFINITY),
+                    frame_to_time(frame_counter, sample_rate)
+                );
             }
         }
 
@@ -122,13 +116,11 @@ fn analyse(args: &Cli, output: &Output, wav: &mut Wav<i32>) -> u8 {
                     }
 
                     state.underrun_count += 1;
-                    if args.debug {
-                        println!(
-                            "[{}] DEBUG        : 0-crossing @ {}",
-                            frame_label,
-                            frame_to_time(frame_counter, sample_rate),
-                        );
-                    }
+                    debug!(
+                        "[{}] DEBUG        : 0-crossing @ {}",
+                        frame_label,
+                        frame_to_time(frame_counter, sample_rate),
+                    );
 
                     state.underrun_prev_index = frame_counter;
                 } else {
@@ -138,17 +130,15 @@ fn analyse(args: &Cli, output: &Output, wav: &mut Wav<i32>) -> u8 {
                             frame_to_time(frame_counter - state.underrun_count, sample_rate);
                         let underrun_end = frame_to_time(frame_counter, sample_rate);
                         let underrun_duration = state.underrun_count as f32 / sample_rate as f32;
-                        if output.enabled() {
-                            println!(
-                                "[{}] UNDERRUN     : CH:{} - {} samples ({:06.3}s) {} -> {}",
-                                frame_label,
-                                channel_index,
-                                state.underrun_count,
-                                underrun_duration,
-                                underrun_start,
-                                underrun_end
-                            );
-                        }
+                        output!(
+                            "[{}] UNDERRUN     : CH:{} - {} samples ({:06.3}s) {} -> {}",
+                            frame_label,
+                            channel_index,
+                            state.underrun_count,
+                            underrun_duration,
+                            underrun_start,
+                            underrun_end
+                        );
                     }
                     state.underrun_count = 0;
                 }
@@ -164,17 +154,15 @@ fn analyse(args: &Cli, output: &Output, wav: &mut Wav<i32>) -> u8 {
                 let underrun_start = frame_to_time(num_frames - state.underrun_count, sample_rate);
                 let underrun_end = frame_to_time(num_frames, sample_rate);
                 let underrun_duration = state.underrun_count as f32 / sample_rate as f32;
-                if output.enabled() {
-                    println!(
-                        "[{}] UNDERRUN     : CH:{} - {} samples ({:06.3}s) {} -> {}",
-                        frame_label,
-                        channel_index,
-                        state.underrun_count,
-                        underrun_duration,
-                        underrun_start,
-                        underrun_end
-                    );
-                }
+                output!(
+                    "[{}] UNDERRUN     : CH:{} - {} samples ({:06.3}s) {} -> {}",
+                    frame_label,
+                    channel_index,
+                    state.underrun_count,
+                    underrun_duration,
+                    underrun_start,
+                    underrun_end
+                );
             }
         }
     }
@@ -182,23 +170,20 @@ fn analyse(args: &Cli, output: &Output, wav: &mut Wav<i32>) -> u8 {
     if args.silence && silence_state.previous_lufs < args.lufs {
         silence_state.silence_end_frame = num_frames;
         silence_count += silence_state.silence_end_frame - silence_state.silence_start_frame;
-        if output.enabled() {
-            println!(
-                "[{}] SILENCE END  : LUFS-S: {:04.3}; LUFS-I: {:04.3} @ {} ({:04.3}% of total)",
-                fmt_frame(num_frames, digits),
-                silence_state.previous_lufs,
-                loudness.loudness_global().unwrap_or(-f64::INFINITY),
-                frame_to_time(num_frames, sample_rate),
-                (silence_count as f32 / num_frames as f32) * 100.0
-            );
-        }
+        output!(
+            "[{}] SILENCE END  : LUFS-S: {:04.3}; LUFS-I: {:04.3} @ {} ({:04.3}% of total)",
+            fmt_frame(num_frames, digits),
+            silence_state.previous_lufs,
+            loudness.loudness_global().unwrap_or(-f64::INFINITY),
+            frame_to_time(num_frames, sample_rate),
+            (silence_count as f32 / num_frames as f32) * 100.0
+        );
 
         if (silence_count as f32 / num_frames as f32) * 100.0 >= args.silence_percentage as f32 {
             return_code |= ERR_CONTAINS_SILENCE;
         }
     }
 
-    output.finish();
     return_code
 }
 
@@ -215,21 +200,22 @@ fn main() -> ExitCode {
     }
 
     let (_, spec) = wav.wav_spec();
-    let output = Output::new(&args, wav.n_samples() as u64);
+    init_output(&args, wav.n_samples() as u64);
 
-    if output.enabled() {
-        println!("[+] sample rate:        {}", &spec.fmt_chunk.sample_rate);
-        println!("[+] channels:           {}", wav.n_channels());
-        println!("[+] total samples:      {}", wav.n_samples());
+    output!("[+] sample rate:        {}", &spec.fmt_chunk.sample_rate);
+    output!("[+] channels:           {}", wav.n_channels());
+    output!("[+] total samples:      {}", wav.n_samples());
+
+    if args.silence {
+        output!("[+] silence threshold:  {} LUFS-S", &args.lufs);
+    }
+    if args.underrun {
+        output!("[+] underrun threshold: {} samples", &args.samples);
     }
 
-    if args.silence && output.enabled() {
-        println!("[+] silence threshold:  {} LUFS-S", &args.lufs);
-    }
-    if args.underrun && output.enabled() {
-        println!("[+] underrun threshold: {} samples", &args.samples);
-    }
+    let code = analyse(&args, &mut wav);
 
-    let code = analyse(&args, &output, &mut wav);
+    output::finish();
+
     ExitCode::from(code)
 }

@@ -1,5 +1,48 @@
+use std::sync::OnceLock;
+
 use crate::cli::Cli;
 use indicatif::{ProgressBar, ProgressStyle};
+
+pub static OUTPUT: OnceLock<Output> = OnceLock::new();
+
+pub fn init_output(args: &Cli, num_frames: u64) {
+    let output = Output::new(args, num_frames);
+    OUTPUT.set(output).unwrap();
+}
+
+#[macro_export]
+macro_rules! output {
+    ($($arg:tt)*) => {
+        if let Some(output) = $crate::output::OUTPUT.get() {
+            if output.enabled() {
+                println!($($arg)*);
+            }
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! debug {
+    ($($arg:tt)*) => {
+        if let Some(output) = $crate::output::OUTPUT.get() {
+            if output.debug {
+                println!($($arg)*);
+            }
+        }
+    };
+}
+
+pub fn inc() {
+    if let Some(output) = OUTPUT.get() {
+        output.inc();
+    }
+}
+
+pub fn finish() {
+    if let Some(output) = OUTPUT.get() {
+        output.finish();
+    }
+}
 
 pub fn fmt_frame(frame: usize, digits: usize) -> String {
     format!("{:0width$}", frame, width = digits)
@@ -17,6 +60,7 @@ pub fn frame_to_time(frame: usize, sample_rate: i32) -> String {
 pub struct Output {
     pub progress_bar: Option<ProgressBar>,
     pub silent: bool,
+    pub debug: bool,
 }
 
 impl Output {
@@ -36,6 +80,7 @@ impl Output {
         Self {
             progress_bar,
             silent: args.silent,
+            debug: args.debug,
         }
     }
 
