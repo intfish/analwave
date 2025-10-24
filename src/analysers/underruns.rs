@@ -11,7 +11,6 @@ pub struct DetectorState {
 
 pub struct UnderrunAnalyser {
     contains_underrun: bool,
-    enabled: bool,
     num_frames: usize,
     states: Vec<DetectorState>,
     sample_rate: i32,
@@ -22,7 +21,6 @@ impl UnderrunAnalyser {
     pub fn new(args: &crate::cli::Cli, wav: &Wav<i32>) -> Self {
         Self {
             contains_underrun: false,
-            enabled: args.underrun,
             num_frames: wav.n_samples(),
             states: vec![
                 DetectorState {
@@ -39,10 +37,6 @@ impl UnderrunAnalyser {
 
 impl Analyser for UnderrunAnalyser {
     fn analyse(&mut self, label: &str, frame_counter: usize, frame: &Samples<i32>) {
-        if !self.enabled {
-            return;
-        }
-
         for (channel_index, sample) in frame.iter().enumerate() {
             assert!(channel_index < self.states.len());
             let state = &mut self.states[channel_index];
@@ -82,10 +76,6 @@ impl Analyser for UnderrunAnalyser {
     }
 
     fn finish(&self, label: &str) -> u8 {
-        if !self.enabled {
-            return 0;
-        }
-
         let mut contains_underrun = self.contains_underrun;
         for (channel_index, state) in self.states.iter().enumerate() {
             if state.underrun_count >= self.samples {

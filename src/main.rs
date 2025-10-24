@@ -18,10 +18,17 @@ const ERR_CONTAINS_SILENCE: u8 = 0b0010;
 fn analyse(args: &Cli, wav: &mut Wav<i32>) -> u8 {
     let mut return_code = 0;
 
-    let mut analysers: Vec<Box<dyn Analyser>> = vec![
-        Box::new(SilenceAnalyser::new(args, wav).expect("Could not initialize EbuR128")),
-        Box::new(UnderrunAnalyser::new(args, wav)),
-    ];
+    let mut analysers: Vec<Box<dyn Analyser>> = vec![];
+
+    if args.silence {
+        analysers.push(Box::new(
+            SilenceAnalyser::new(args, wav).expect("Could not initialize EbuR128"),
+        ));
+    }
+
+    if args.underrun {
+        analysers.push(Box::new(UnderrunAnalyser::new(args, wav)));
+    }
 
     let digits = wav.n_samples().to_string().len();
     let num_frames = wav.n_samples();

@@ -23,7 +23,6 @@ impl SilenceState {
 
 pub struct SilenceAnalyser {
     count: usize,
-    enabled: bool,
     frame_buf: Vec<i32>,
     frame_buf_iter: usize,
     loudness: EbuR128,
@@ -49,7 +48,6 @@ impl SilenceAnalyser {
 
         Ok(Self {
             count: 0,
-            enabled: args.silence,
             frame_buf: vec![0; window_size],
             frame_buf_iter: 0,
             loudness,
@@ -65,10 +63,6 @@ impl SilenceAnalyser {
 
 impl Analyser for SilenceAnalyser {
     fn analyse(&mut self, label: &str, frame_counter: usize, frame: &Samples<i32>) {
-        if !self.enabled {
-            return;
-        }
-
         for sample in frame.iter() {
             self.frame_buf[self.frame_buf_iter] = *sample;
             self.frame_buf_iter += 1;
@@ -126,10 +120,6 @@ impl Analyser for SilenceAnalyser {
     }
 
     fn finish(&self, label: &str) -> u8 {
-        if !self.enabled {
-            return 0;
-        }
-
         if self.state.previous_lufs < self.lufs {
             let end_frame = self.num_frames;
             let count = self.count + end_frame - self.state.silence_start_frame;
