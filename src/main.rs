@@ -1,5 +1,6 @@
 mod analysers;
 mod cli;
+mod json;
 mod output;
 
 use clap::Parser;
@@ -10,7 +11,7 @@ use analysers::{Analyser, silence::SilenceAnalyser};
 use cli::Cli;
 use output::{fmt_frame, init_output};
 
-use crate::analysers::underruns::UnderrunAnalyser;
+use crate::{analysers::underruns::UnderrunAnalyser, json::write_json};
 
 const ERR_CONTAINS_UNDERRUN: u8 = 0b0001;
 const ERR_CONTAINS_SILENCE: u8 = 0b0010;
@@ -45,8 +46,12 @@ fn analyse(args: &Cli, wav: &mut Wav<i32>) -> u8 {
 
     let frame_label = fmt_frame(num_frames, digits);
 
-    for analyser in analysers.iter() {
+    for analyser in analysers.iter_mut() {
         return_code |= analyser.finish(&frame_label);
+    }
+
+    if args.json.is_some() {
+        write_json(args, &analysers);
     }
 
     return_code

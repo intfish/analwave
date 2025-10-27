@@ -1,4 +1,5 @@
 use ebur128::{EbuR128, Error as EbuR128Error, Mode};
+use serde::Serialize;
 use wavers::{Samples, Wav};
 
 use super::Analyser;
@@ -21,6 +22,21 @@ impl SilenceState {
     }
 }
 
+struct InternalSegment {
+    start: usize,
+    end: Option<usize>,
+}
+
+#[derive(Serialize)]
+pub struct SilenceSegment {
+    pub start: f32,
+    pub end: f32,
+    #[serde(rename = "durationSecs")]
+    pub duration_secs: f32,
+    #[serde(rename = "durationSamples")]
+    pub duration_samples: usize,
+}
+
 pub struct SilenceAnalyser {
     count: usize,
     frame_buf: Vec<i32>,
@@ -32,6 +48,7 @@ pub struct SilenceAnalyser {
     sample_rate: i32,
     state: SilenceState,
     window_size: usize,
+    segments: Vec<InternalSegment>,
 }
 
 impl SilenceAnalyser {
@@ -57,6 +74,7 @@ impl SilenceAnalyser {
             sample_rate,
             state: SilenceState::new(),
             window_size,
+            segments: Vec::new(),
         })
     }
 }
@@ -92,6 +110,11 @@ impl Analyser for SilenceAnalyser {
                     self.loudness.loudness_global().unwrap_or(-f64::INFINITY),
                     frame_to_time(frame_counter, self.sample_rate)
                 );
+
+                self.segments.push(InternalSegment {
+                    start: self.state.silence_start_frame,
+                    end: None,
+                });
             }
 
             if lufs >= self.lufs && self.state.previous_lufs < self.lufs {
@@ -106,6 +129,10 @@ impl Analyser for SilenceAnalyser {
                     frame_to_time(frame_counter, self.sample_rate),
                     (self.count as f32 / self.num_frames as f32) * 100.0
                 );
+
+                if let Some(segment) = self.segments.last_mut() {
+                    segment.end = Some(self.state.silence_end_frame);
+                }
             }
 
             self.state.previous_lufs = lufs;
@@ -119,7 +146,7 @@ impl Analyser for SilenceAnalyser {
         }
     }
 
-    fn finish(&self, label: &str) -> u8 {
+    fn finish(&mut self, label: &str) -> u8 {
         if self.state.previous_lufs < self.lufs {
             let end_frame = self.num_frames;
             let count = self.count + end_frame - self.state.silence_start_frame;
@@ -132,11 +159,41 @@ impl Analyser for SilenceAnalyser {
                 (count as f32 / self.num_frames as f32) * 100.0
             );
 
+            if let Some(segment) = self.segments.last_mut() {
+                segment.end = Some(end_frame);
+            }
+
             if (count as f32 / self.num_frames as f32) * 100.0 >= self.percentage {
                 return crate::ERR_CONTAINS_SILENCE;
             }
         }
 
         0
+    }
+
+    fn json(&self) -> Option<(String, serde_json::Value)> {
+        if self.segments.is_empty() {
+            return None;
+        }
+
+        let segments: Vec<SilenceSegment> = self
+            .segments
+            .iter()
+            .map(|seg| {
+                let end_frame = seg.end.unwrap_or(self.num_frames);
+                let duration_samples = end_frame - seg.start;
+                SilenceSegment {
+                    start: seg.start as f32 / self.sample_rate as f32,
+                    end: end_frame as f32 / self.sample_rate as f32,
+                    duration_secs: duration_samples as f32 / self.sample_rate as f32,
+                    duration_samples,
+                }
+            })
+            .collect();
+
+        Some((
+            "silence".to_string(),
+            serde_json::to_value(&segments).unwrap(),
+        ))
     }
 }
