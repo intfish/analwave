@@ -31,8 +31,11 @@ struct InternalSegment {
 pub struct SilenceSegment {
     pub start: f32,
     pub end: f32,
-    #[serde(rename = "durationSecs")]
-    pub duration_secs: f32,
+    pub duration: f32,
+    #[serde(rename = "startSamples")]
+    pub start_samples: usize,
+    #[serde(rename = "endSamples")]
+    pub end_samples: usize,
     #[serde(rename = "durationSamples")]
     pub duration_samples: usize,
 }
@@ -185,7 +188,9 @@ impl Analyser for SilenceAnalyser {
                 SilenceSegment {
                     start: seg.start as f32 / self.sample_rate as f32,
                     end: end_frame as f32 / self.sample_rate as f32,
-                    duration_secs: duration_samples as f32 / self.sample_rate as f32,
+                    duration: duration_samples as f32 / self.sample_rate as f32,
+                    start_samples: seg.start,
+                    end_samples: end_frame,
                     duration_samples,
                 }
             })

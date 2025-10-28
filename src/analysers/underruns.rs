@@ -14,21 +14,20 @@ struct InternalSegment {
     start: usize,
     end: Option<usize>,
     channel: usize,
-    count: usize,
 }
 
 #[derive(Serialize)]
 pub struct UnderrunSegment {
     pub start: f32,
     pub end: f32,
-    #[serde(rename = "durationSecs")]
-    pub duration_secs: f32,
+    pub duration: f32,
+    #[serde(rename = "startSamples")]
+    pub start_samples: usize,
+    #[serde(rename = "endSamples")]
+    pub end_samples: usize,
     #[serde(rename = "durationSamples")]
     pub duration_samples: usize,
-    #[serde(rename = "channelLower")]
-    pub channel_lower: usize,
-    #[serde(rename = "channelUpper")]
-    pub channel_upper: usize,
+    pub channel: usize,
 }
 
 pub struct UnderrunAnalyser {
@@ -98,7 +97,6 @@ impl Analyser for UnderrunAnalyser {
                         start: frame_counter - state.underrun_count,
                         end: Some(frame_counter),
                         channel: channel_index,
-                        count: state.underrun_count,
                     });
                 }
                 state.underrun_count = 0;
@@ -129,7 +127,6 @@ impl Analyser for UnderrunAnalyser {
                     start: self.num_frames - state.underrun_count,
                     end: Some(self.num_frames),
                     channel: channel_index,
-                    count: state.underrun_count,
                 });
             }
         }
@@ -155,10 +152,11 @@ impl Analyser for UnderrunAnalyser {
                 UnderrunSegment {
                     start: seg.start as f32 / self.sample_rate as f32,
                     end: end_frame as f32 / self.sample_rate as f32,
-                    duration_secs: duration_samples as f32 / self.sample_rate as f32,
+                    duration: duration_samples as f32 / self.sample_rate as f32,
+                    start_samples: seg.start,
+                    end_samples: end_frame,
                     duration_samples,
-                    channel_lower: seg.channel,
-                    channel_upper: seg.channel + seg.count,
+                    channel: seg.channel,
                 }
             })
             .collect();
