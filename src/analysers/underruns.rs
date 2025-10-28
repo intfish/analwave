@@ -1,3 +1,4 @@
+use serde::Serialize;
 use wavers::{Samples, Wav};
 
 use super::Analyser;
@@ -9,12 +10,33 @@ pub struct DetectorState {
     pub underrun_prev_index: usize,
 }
 
+struct InternalSegment {
+    start: usize,
+    end: Option<usize>,
+    channel: usize,
+}
+
+#[derive(Serialize)]
+pub struct UnderrunSegment {
+    pub start: f32,
+    pub end: f32,
+    pub duration: f32,
+    #[serde(rename = "startSample")]
+    pub start_sample: usize,
+    #[serde(rename = "endSample")]
+    pub end_sample: usize,
+    #[serde(rename = "durationSamples")]
+    pub duration_samples: usize,
+    pub channel: usize,
+}
+
 pub struct UnderrunAnalyser {
     contains_underrun: bool,
     num_frames: usize,
     states: Vec<DetectorState>,
     sample_rate: i32,
     samples: usize,
+    segments: Vec<InternalSegment>,
 }
 
 impl UnderrunAnalyser {
@@ -31,6 +53,7 @@ impl UnderrunAnalyser {
             ],
             sample_rate: wav.wav_spec().1.fmt_chunk.sample_rate,
             samples: args.samples,
+            segments: Vec::new(),
         }
     }
 }
@@ -69,13 +92,19 @@ impl Analyser for UnderrunAnalyser {
                         underrun_start,
                         underrun_end
                     );
+
+                    self.segments.push(InternalSegment {
+                        start: frame_counter - state.underrun_count,
+                        end: Some(frame_counter),
+                        channel: channel_index,
+                    });
                 }
                 state.underrun_count = 0;
             }
         }
     }
 
-    fn finish(&self, label: &str) -> u8 {
+    fn finish(&mut self, label: &str) -> u8 {
         let mut contains_underrun = self.contains_underrun;
         for (channel_index, state) in self.states.iter().enumerate() {
             if state.underrun_count >= self.samples {
@@ -93,6 +122,12 @@ impl Analyser for UnderrunAnalyser {
                     underrun_start,
                     underrun_end
                 );
+
+                self.segments.push(InternalSegment {
+                    start: self.num_frames - state.underrun_count,
+                    end: Some(self.num_frames),
+                    channel: channel_index,
+                });
             }
         }
 
@@ -101,5 +136,34 @@ impl Analyser for UnderrunAnalyser {
         } else {
             0
         }
+    }
+
+    fn json(&self) -> Option<(String, serde_json::Value)> {
+        if self.segments.is_empty() {
+            return None;
+        }
+
+        let segments: Vec<UnderrunSegment> = self
+            .segments
+            .iter()
+            .map(|seg| {
+                let end_frame = seg.end.unwrap_or(self.num_frames);
+                let duration_samples = end_frame - seg.start;
+                UnderrunSegment {
+                    start: seg.start as f32 / self.sample_rate as f32,
+                    end: end_frame as f32 / self.sample_rate as f32,
+                    duration: duration_samples as f32 / self.sample_rate as f32,
+                    start_sample: seg.start,
+                    end_sample: end_frame,
+                    duration_samples,
+                    channel: seg.channel,
+                }
+            })
+            .collect();
+
+        Some((
+            "underruns".to_string(),
+            serde_json::to_value(&segments).unwrap(),
+        ))
     }
 }

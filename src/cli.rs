@@ -38,4 +38,8 @@ pub struct Cli {
     /// Silent (no output)
     #[arg(long, default_value_t = false)]
     pub silent: bool,
+
+    /// Output results as JSON to file
+    #[arg(long)]
+    pub json: Option<String>,
 }
