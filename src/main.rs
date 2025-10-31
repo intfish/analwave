@@ -7,7 +7,7 @@ use clap::Parser;
 use std::process::ExitCode;
 use wavers::{Wav, WaversResult};
 
-use analysers::{Analyser, silence::SilenceAnalyser};
+use analysers::{Analyser, loudness::LoudnessAnalyser};
 use cli::Cli;
 use output::{fmt_frame, init_output};
 
@@ -23,7 +23,7 @@ fn analyse(args: &Cli, wav: &mut Wav<i32>) -> u8 {
 
     if args.silence {
         analysers.push(Box::new(
-            SilenceAnalyser::new(args, wav).expect("Could not initialize EbuR128"),
+            LoudnessAnalyser::new(args, wav).expect("Could not initialize EbuR128"),
         ));
     }
 
