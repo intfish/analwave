@@ -64,7 +64,8 @@ impl SilenceAnalyser {
             Mode::S | Mode::I,
         )?;
 
-        let window_size = sample_rate as usize * wav.n_channels() as usize;
+        let window_size =
+            ((sample_rate as usize * wav.n_channels() as usize) as f32 * args.window_size) as usize;
 
         Ok(Self {
             count: 0,
@@ -104,6 +105,7 @@ impl Analyser for SilenceAnalyser {
                 .loudness
                 .loudness_shortterm()
                 .unwrap_or(f64::NEG_INFINITY);
+
             if lufs < self.lufs && self.state.previous_lufs >= self.lufs {
                 self.state.silence_start_frame = frame_counter;
                 output!(
@@ -199,6 +201,7 @@ impl Analyser for SilenceAnalyser {
         let analysis = serde_json::json!({
             "results": segments,
             "threshold": self.lufs,
+            "windowSize": self.window_size as f32 / self.sample_rate as f32,
         });
 
         Some(("silence".to_string(), analysis))

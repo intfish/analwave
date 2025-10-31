@@ -78,6 +78,7 @@ fn main() -> ExitCode {
 
     if args.silence {
         output!("[+] silence threshold:  {} LUFS-S", &args.lufs);
+        output!("[+] silence window:     {} seconds", &args.window_size);
     }
     if args.underrun {
         output!("[+] underrun threshold: {} samples", &args.samples);

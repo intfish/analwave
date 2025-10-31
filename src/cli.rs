@@ -42,4 +42,8 @@ pub struct Cli {
     /// Output results as JSON to file
     #[arg(long)]
     pub json: Option<String>,
+
+    /// Window size for silence / loudness in seconds
+    #[arg(long, default_value_t = 1.0)]
+    pub window_size: f32,
 }
