@@ -50,10 +50,17 @@ struct Silence {
     state: SilenceState,
 }
 
+struct Loudness {
+    start: usize,
+    end: Option<usize>,
+    loudness: f64,
+}
+
 pub struct LoudnessAnalyser {
     frame_buf: Vec<i32>,
     frame_buf_iter: usize,
     loudness: EbuR128,
+    loudness_windows: Option<Vec<Loudness>>,
     num_frames: usize,
     sample_rate: i32,
     window_size: usize,
@@ -85,10 +92,21 @@ impl LoudnessAnalyser {
             None
         };
 
+        let loudness_windows = if args.loudness {
+            Some(vec![Loudness {
+                start: 0,
+                end: None,
+                loudness: 0.0,
+            }])
+        } else {
+            None
+        };
+
         Ok(Self {
             frame_buf: vec![0; window_size],
             frame_buf_iter: 0,
             loudness,
+            loudness_windows,
             num_frames: wav.n_samples(),
             sample_rate,
             window_size,
@@ -119,6 +137,19 @@ impl Analyser for LoudnessAnalyser {
                 .loudness
                 .loudness_shortterm()
                 .unwrap_or(f64::NEG_INFINITY);
+
+            if let Some(windows) = &mut self.loudness_windows {
+                if let Some(last_window) = windows.last_mut() {
+                    last_window.end = Some(frame_counter);
+                    last_window.loudness = lufs;
+                }
+
+                windows.push(Loudness {
+                    start: frame_counter,
+                    end: None,
+                    loudness: 0.0,
+                });
+            }
 
             if let Some(silence) = &mut self.silence {
                 if lufs < silence.lufs && silence.state.previous_lufs >= silence.lufs {
@@ -170,6 +201,30 @@ impl Analyser for LoudnessAnalyser {
     }
 
     fn finish(&mut self, label: &str) -> u8 {
+        if let Some(windows) = &mut self.loudness_windows
+            && let Some(last_window) = windows.last_mut()
+        {
+            // Process any remaining samples in the buffer
+            self.loudness.reset();
+            if let Err(err) = self
+                .loudness
+                .add_frames_i32(&self.frame_buf[..self.frame_buf_iter])
+            {
+                println!(
+                    "Warning: error adding frame to loudness measurement: {:?}",
+                    &err
+                );
+            }
+
+            let lufs = self
+                .loudness
+                .loudness_shortterm()
+                .unwrap_or(f64::NEG_INFINITY);
+
+            last_window.end = Some(self.num_frames);
+            last_window.loudness = lufs;
+        }
+
         if let Some(silence) = &mut self.silence {
             if silence.state.previous_lufs < silence.lufs {
                 let end_frame = self.num_frames;
@@ -198,6 +253,30 @@ impl Analyser for LoudnessAnalyser {
 
     fn json(&self) -> Vec<(String, serde_json::Value)> {
         let mut results = vec![];
+
+        if let Some(windows) = &self.loudness_windows
+            && !windows.is_empty()
+        {
+            let loudness_windows: Vec<serde_json::Value> = windows
+                .iter()
+                .map(|win| {
+                    let end = win.end.unwrap_or(self.num_frames);
+
+                    serde_json::json!({
+                        "start": win.start as f32 / self.sample_rate as f32,
+                        "end": end as f32 / self.sample_rate as f32,
+                        "loudness": win.loudness,
+                    })
+                })
+                .collect();
+
+            let analysis = serde_json::json!({
+                "results": loudness_windows,
+                "windowSize": self.window_size as f32 / self.sample_rate as f32,
+            });
+
+            results.push(("loudness".to_string(), analysis));
+        }
 
         if let Some(silence) = &self.silence
             && !silence.segments.is_empty()
