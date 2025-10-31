@@ -1,28 +1,52 @@
+use serde::Serialize;
 use serde_json::{Map, Value, to_string_pretty};
+use wavers::Wav;
 
 use crate::{analysers::Analyser, cli::Cli, output};
 
-pub fn write_json(args: &Cli, analysers: &Vec<Box<dyn Analyser>>) {
-    let mut json_output = Map::new();
+#[derive(Serialize)]
+struct JsonOutput {
+    analysis: Map<String, Value>,
+    duration: f32,
+    num_channels: u16,
+    num_samples: usize,
+    sample_rate: i32,
+}
 
-    for analyser in analysers.iter() {
-        if let Some((key, value)) = analyser.json() {
-            json_output.insert(key, value);
-        }
-    }
-
-    if json_output.is_empty() {
-        return;
-    }
-
-    let json_value = Value::Object(json_output);
+pub fn write_json(args: &Cli, wav: &Wav<i32>, analysers: &Vec<Box<dyn Analyser>>) {
     let Some(path) = args.json.as_ref() else {
-        println!("No JSON output file specified");
         return;
     };
 
-    std::fs::write(path, to_string_pretty(&json_value).unwrap())
-        .expect("Could not write JSON output to file");
+    let mut analysis = Map::new();
+
+    for analyser in analysers.iter() {
+        if let Some((key, value)) = analyser.json() {
+            analysis.insert(key, value);
+        }
+    }
+
+    if analysis.is_empty() {
+        // Shouldn't happen
+        return;
+    }
+
+    let (_, spec) = wav.wav_spec();
+    let sample_rate = spec.fmt_chunk.sample_rate;
+    let num_samples = wav.n_samples();
+
+    std::fs::write(
+        path,
+        to_string_pretty(&JsonOutput {
+            analysis,
+            duration: num_samples as f32 / sample_rate as f32,
+            num_channels: wav.n_channels(),
+            num_samples,
+            sample_rate,
+        })
+        .unwrap(),
+    )
+    .expect("Could not write JSON output to file");
 
     output!("Wrote JSON output to {}", path);
 }

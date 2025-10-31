@@ -196,9 +196,11 @@ impl Analyser for SilenceAnalyser {
             })
             .collect();
 
-        Some((
-            "silence".to_string(),
-            serde_json::to_value(&segments).unwrap(),
-        ))
+        let analysis = serde_json::json!({
+            "results": segments,
+            "threshold": self.lufs,
+        });
+
+        Some(("silence".to_string(), analysis))
     }
 }

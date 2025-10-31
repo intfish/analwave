@@ -50,9 +50,9 @@ fn analyse(args: &Cli, wav: &mut Wav<i32>) -> u8 {
         return_code |= analyser.finish(&frame_label);
     }
 
-    if args.json.is_some() {
-        write_json(args, &analysers);
-    }
+    output::finish();
+
+    write_json(args, wav, &analysers);
 
     return_code
 }
@@ -84,8 +84,6 @@ fn main() -> ExitCode {
     }
 
     let code = analyse(&args, &mut wav);
-
-    output::finish();
 
     ExitCode::from(code)
 }

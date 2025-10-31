@@ -161,9 +161,11 @@ impl Analyser for UnderrunAnalyser {
             })
             .collect();
 
-        Some((
-            "underruns".to_string(),
-            serde_json::to_value(&segments).unwrap(),
-        ))
+        let analysis = serde_json::json!({
+            "results": segments,
+            "threshold": self.samples,
+        });
+
+        Some(("underruns".to_string(), analysis))
     }
 }
