@@ -7,7 +7,7 @@ use clap::Parser;
 use std::process::ExitCode;
 use wavers::{Wav, WaversResult};
 
-use analysers::{Analyser, silence::SilenceAnalyser};
+use analysers::{Analyser, loudness::LoudnessAnalyser};
 use cli::Cli;
 use output::{fmt_frame, init_output};
 
@@ -21,9 +21,9 @@ fn analyse(args: &Cli, wav: &mut Wav<i32>) -> u8 {
 
     let mut analysers: Vec<Box<dyn Analyser>> = vec![];
 
-    if args.silence {
+    if args.silence || args.loudness {
         analysers.push(Box::new(
-            SilenceAnalyser::new(args, wav).expect("Could not initialize EbuR128"),
+            LoudnessAnalyser::new(args, wav).expect("Could not initialize EbuR128"),
         ));
     }
 
@@ -64,8 +64,8 @@ fn main() -> ExitCode {
         return ExitCode::from(1);
     };
 
-    if !args.underrun && !args.silence {
-        println!("Neither underrun nor silence detection is active, exiting.");
+    if !args.underrun && !args.silence && !args.loudness {
+        println!("No detection is active, exiting.");
         return ExitCode::from(1);
     }
 
@@ -80,6 +80,7 @@ fn main() -> ExitCode {
         output!("[+] silence threshold:  {} LUFS-S", &args.lufs);
         output!("[+] silence window:     {} seconds", &args.window_size);
     }
+
     if args.underrun {
         output!("[+] underrun threshold: {} samples", &args.samples);
     }

@@ -138,9 +138,9 @@ impl Analyser for UnderrunAnalyser {
         }
     }
 
-    fn json(&self) -> Option<(String, serde_json::Value)> {
+    fn json(&self) -> Vec<(String, serde_json::Value)> {
         if self.segments.is_empty() {
-            return None;
+            return Vec::new();
         }
 
         let segments: Vec<UnderrunSegment> = self
@@ -166,6 +166,6 @@ impl Analyser for UnderrunAnalyser {
             "threshold": self.samples,
         });
 
-        Some(("underruns".to_string(), analysis))
+        vec![("underruns".to_string(), analysis)]
     }
 }

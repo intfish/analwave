@@ -21,7 +21,7 @@ pub fn write_json(args: &Cli, wav: &Wav<i32>, analysers: &Vec<Box<dyn Analyser>>
     let mut analysis = Map::new();
 
     for analyser in analysers.iter() {
-        if let Some((key, value)) = analyser.json() {
+        for (key, value) in analyser.json() {
             analysis.insert(key, value);
         }
     }

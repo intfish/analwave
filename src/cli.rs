@@ -46,4 +46,8 @@ pub struct Cli {
     /// Window size for silence / loudness in seconds
     #[arg(long, default_value_t = 1.0)]
     pub window_size: f32,
+
+    /// Track loudness to JSON (does nothing if JSON output is not enabled)
+    #[arg(short, long, default_value_t = false)]
+    pub loudness: bool,
 }
